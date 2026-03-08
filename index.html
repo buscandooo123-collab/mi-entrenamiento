@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Mi Entrenamiento Gym</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 10px; }
+        
+        /* LOCK SCREEN */
+        .lock-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; }
+        .lock-screen.hidden { display: none; }
+        .lock-header { text-align: center; margin-bottom: 30px; }
+        .lock-header h1 { color: white; font-size: 24px; margin-bottom: 8px; }
+        .lock-header p { color: #a0aec0; font-size: 14px; }
+        .lock-status { color: #667eea; font-size: 13px; margin-top: 10px; min-height: 20px; }
+        .lock-status.error { color: #fc8181; }
+        .lock-status.success { color: #68d391; }
+        .pattern-container { position: relative; width: 260px; height: 260px; }
+        .pattern-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .pattern-line { stroke: #667eea; stroke-width: 4; stroke-linecap: round; fill: none; }
+        .pattern-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; padding: 15px; width: 100%; height: 100%; }
+        .pattern-dot { width: 55px; height: 55px; border-radius: 50%; background: #2d3748; border: 3px solid #4a5568; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
+        .pattern-dot::after { content: ''; width: 18px; height: 18px; border-radius: 50%; background: #4a5568; transition: all 0.2s; }
+        .pattern-dot.active { border-color: #667eea; }
+        .pattern-dot.active::after { background: #667eea; transform: scale(1.2); }
+        .pattern-dot.error { border-color: #fc8181; }
+        .pattern-dot.error::after { background: #fc8181; }
+        .pattern-dot.success { border-color: #68d391; }
+        .pattern-dot.success::after { background: #68d391; }
+        .lock-actions { margin-top: 25px; display: none; gap: 12px; }
+        .lock-btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+        .lock-btn.primary { background: #667eea; color: white; }
+        .lock-btn.secondary { background: #4a5568; color: white; }
+        
+        /* MAIN APP */
+        .container { max-width: 500px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); overflow: hidden; min-height: calc(100vh - 20px); }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px; text-align: center; }
+        .header h1 { font-size: 18px; margin-bottom: 2px; }
+        .header p { opacity: 0.9; font-size: 10px; }
+        .sync-status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 9px; margin-top: 4px; background: rgba(255,255,255,0.2); }
+        .sync-status.online { background: #28a745; }
+        .sync-status.offline { background: #dc3545; }
+        .sync-status.syncing { background: #ffc107; color: #000; }
+        
+        .top-nav { display: flex; background: #2d3748; }
+        .top-nav-btn { flex: 1; padding: 10px 4px; text-align: center; cursor: pointer; font-weight: 600; font-size: 9px; border: none; background: none; color: #a0aec0; transition: all 0.2s; }
+        .top-nav-btn.active { background: #667eea; color: white; }
+        
+        .main-tabs { display: flex; background: #f8f9fa; border-bottom: 2px solid #e9ecef; }
+        .main-tab { flex: 1; padding: 10px 4px; text-align: center; cursor: pointer; font-weight: 600; font-size: 9px; border: none; background: none; color: #6c757d; position: relative; }
+        .main-tab.active { background: white; color: #667eea; }
+        .main-tab.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: #667eea; }
+        
+        .sub-tabs { display: flex; background: #f1f3f5; padding: 0 6px; border-bottom: 1px solid #dee2e6; }
+        .sub-tab { padding: 8px 10px; cursor: pointer; font-weight: 600; font-size: 10px; border: none; background: none; color: #868e96; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+        .sub-tab.active { color: #667eea; border-bottom-color: #667eea; }
+        
+        .content { padding: 10px; max-height: calc(100vh - 180px); overflow-y: auto; }
+        .page, .section, .routine { display: none; }
+        .page.active, .section.active, .routine.active { display: block; }
+        
+        .muscle-group { margin-bottom: 10px; }
+        .muscle-group h3 { color: #667eea; font-size: 12px; margin-bottom: 5px; padding-bottom: 4px; border-bottom: 2px solid #e9ecef; }
+        
+        .exercise { background: #f8f9fa; padding: 8px; margin-bottom: 5px; border-radius: 8px; }
+        .exercise-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; gap: 4px; }
+        .exercise-name { font-weight: 600; color: #2d3748; font-size: 11px; cursor: pointer; padding: 2px 4px; border-radius: 4px; flex: 1; }
+        .exercise-name:hover { background: #e9ecef; }
+        .exercise-name-input { font-weight: 600; font-size: 11px; padding: 3px 5px; border: 2px solid #667eea; border-radius: 4px; flex: 1; display: none; width: 100%; }
+        .exercise-sets { color: #6c757d; font-size: 8px; background: #e9ecef; padding: 2px 4px; border-radius: 4px; white-space: nowrap; }
+        
+        .exercise-inputs { display: flex; gap: 5px; margin-bottom: 4px; }
+        .weight-input, .notes-input { display: flex; gap: 3px; align-items: center; }
+        .weight-input { flex: 0 0 auto; }
+        .notes-input { flex: 1; }
+        .weight-input label, .notes-input label { font-size: 9px; color: #6c757d; }
+        .weight-input input { width: 48px; padding: 5px; border: 2px solid #e9ecef; border-radius: 4px; font-size: 12px; text-align: center; }
+        .notes-input textarea { flex: 1; padding: 5px; border: 2px solid #e9ecef; border-radius: 4px; font-size: 10px; font-family: inherit; resize: none; height: 26px; }
+        .weight-input input:focus, .notes-input textarea:focus, .exercise-name-input:focus { outline: none; border-color: #667eea; }
+        
+        .history { margin-top: 4px; padding: 4px; background: white; border-radius: 4px; font-size: 9px; }
+        .history strong { color: #495057; display: block; margin-bottom: 2px; }
+        .history-item { background: #e7f3ff; border-radius: 4px; padding: 3px 5px; margin-bottom: 2px; color: #0c5460; display: flex; justify-content: space-between; align-items: center; font-size: 8px; }
+        .history-weight { font-weight: 600; }
+        .history-date { font-size: 7px; color: #5a6c7d; }
+        .history-notes { font-size: 7px; font-style: italic; margin-left: 4px; flex: 1; }
+        .no-history { color: #adb5bd; font-style: italic; font-size: 9px; }
+        
+        .save-btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 10px; width: 100%; }
+        .save-btn:disabled { background: #adb5bd; }
+        
+        .message { padding: 8px; border-radius: 6px; margin-bottom: 8px; display: none; text-align: center; font-weight: 600; font-size: 11px; }
+        .message.success { background: #28a745; color: white; }
+        .message.warning { background: #ffc107; color: #000; }
+        .message.info { background: #17a2b8; color: white; }
+        .message.show { display: block; }
+        
+        /* STATS PAGE */
+        .stats-page { padding: 10px; }
+        .stats-section { margin-bottom: 18px; }
+        .stats-section h2 { color: #667eea; font-size: 15px; margin-bottom: 8px; text-align: center; }
+        
+        /* 3D Body Style */
+        .body-container { display: flex; justify-content: center; gap: 15px; margin-bottom: 12px; }
+        .body-view { text-align: center; }
+        .body-view h4 { font-size: 10px; color: #6c757d; margin-bottom: 5px; }
+        
+        .human-body { width: 130px; height: 300px; position: relative; }
+        .human-body svg { width: 100%; height: 100%; }
+        
+        .body-part { transition: all 0.3s; cursor: pointer; }
+        .body-part:hover { filter: brightness(1.1); }
+        .body-part.improved { fill: #28a745 !important; }
+        .body-part.maintained { fill: #fd7e14 !important; }
+        .body-part.declined { fill: #dc3545 !important; }
+        .body-part.no-data { fill: #c9d1d9 !important; }
+        
+        .body-legend { display: flex; justify-content: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 4px; font-size: 9px; }
+        .legend-color { width: 10px; height: 10px; border-radius: 3px; }
+        .legend-color.green { background: #28a745; }
+        .legend-color.orange { background: #fd7e14; }
+        .legend-color.red { background: #dc3545; }
+        .legend-color.gray { background: #c9d1d9; }
+        
+        /* Measurements */
+        .measurements-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 12px; }
+        .measurement-card { background: #f8f9fa; padding: 8px; border-radius: 8px; text-align: center; }
+        .measurement-card label { display: block; font-size: 9px; color: #6c757d; margin-bottom: 3px; }
+        .measurement-card input { width: 100%; padding: 5px; border: 2px solid #e9ecef; border-radius: 4px; font-size: 13px; text-align: center; font-weight: 600; }
+        .measurement-card input:focus { outline: none; border-color: #667eea; }
+        .measurement-card .unit { font-size: 8px; color: #6c757d; margin-top: 2px; }
+        .measurement-card .trend { font-size: 9px; margin-top: 2px; font-weight: 600; }
+        .measurement-card .trend.up { color: #28a745; }
+        .measurement-card .trend.down { color: #dc3545; }
+        .measurement-card .trend.same { color: #fd7e14; }
+        .save-measurements-btn { background: #28a745; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 8px; }
+        
+        /* Calendar */
+        .calendar-container { background: #f8f9fa; border-radius: 10px; padding: 10px; }
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .calendar-header h3 { font-size: 13px; color: #2d3748; }
+        .calendar-nav { display: flex; gap: 8px; }
+        .calendar-nav button { background: #667eea; color: white; border: none; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 11px; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+        .calendar-day-header { text-align: center; font-size: 8px; font-weight: 600; color: #6c757d; padding: 4px 0; }
+        .calendar-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 9px; font-weight: 600; }
+        .calendar-day.empty { background: transparent; }
+        .calendar-day.rest { background: #e9ecef; color: #6c757d; }
+        .calendar-day.pierna { background: #28a745; color: white; }
+        .calendar-day.superior { background: #007bff; color: white; }
+        .calendar-day.muaythai { background: #dc3545; color: white; }
+        .calendar-day.today { box-shadow: 0 0 0 2px #667eea; }
+        
+        .calendar-legend { display: flex; justify-content: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+        .calendar-legend-item { display: flex; align-items: center; gap: 3px; font-size: 8px; }
+        .calendar-legend-color { width: 8px; height: 8px; border-radius: 2px; }
+        
+        .consistency-score { text-align: center; margin-top: 12px; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; color: white; }
+        .consistency-score h3 { font-size: 11px; margin-bottom: 4px; }
+        .consistency-score .score { font-size: 32px; font-weight: 700; }
+        .consistency-score .label { font-size: 10px; opacity: 0.9; }
+        
+        /* Historial Page */
+        .historial-page { padding: 10px; }
+        .historial-header { text-align: center; margin-bottom: 12px; }
+        .historial-header h2 { color: #667eea; font-size: 16px; }
+        .historial-routine { background: #f8f9fa; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+        .historial-routine h3 { color: #2d3748; font-size: 13px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .historial-routine .sessions-count { font-size: 10px; color: #6c757d; font-weight: normal; }
+        .historial-sessions { max-height: 120px; overflow-y: auto; }
+        .historial-session { background: white; padding: 6px 8px; margin-bottom: 4px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+        .historial-session-date { font-weight: 600; font-size: 11px; }
+        .historial-session-delete { background: #dc3545; color: white; border: none; padding: 3px 8px; border-radius: 4px; font-size: 9px; cursor: pointer; }
+        .historial-clear-btn { background: #dc3545; color: white; border: none; padding: 7px; border-radius: 6px; font-size: 10px; cursor: pointer; width: 100%; margin-top: 6px; }
+        .no-sessions { text-align: center; color: #6c757d; padding: 12px; font-size: 10px; }
+        
+        /* Muay Thai */
+        .round-section { background: #f8f9fa; padding: 8px; margin-bottom: 6px; border-radius: 8px; border-left: 3px solid #dc3545; }
+        .round-section h3 { color: #dc3545; margin-bottom: 4px; font-size: 12px; }
+        .exercise-list { list-style: none; margin-bottom: 6px; }
+        .exercise-list li { padding: 2px 0 2px 12px; position: relative; color: #495057; font-size: 10px; }
+        .exercise-list li::before { content: '▸'; position: absolute; left: 0; color: #dc3545; }
+        .timer-info { background: white; padding: 3px 6px; border-radius: 4px; margin-bottom: 4px; font-weight: 600; color: #dc3545; font-size: 10px; display: inline-block; }
+        .completion-checkbox { display: flex; align-items: center; gap: 6px; padding: 6px; background: white; border-radius: 4px; }
+        .completion-checkbox input { width: 18px; height: 18px; accent-color: #28a745; }
+        .completion-checkbox label { font-weight: 600; color: #495057; font-size: 11px; }
+        .edit-hint { font-size: 9px; color: #6c757d; text-align: center; margin-bottom: 6px; padding: 4px; background: #fff3cd; border-radius: 4px; }
+        
+        .reset-pattern-btn { margin-top: 12px; padding: 10px; width: 100%; background: #fd7e14; color: white; border: none; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <!-- LOCK SCREEN -->
+    <div id="lock-screen" class="lock-screen">
+        <div class="lock-header">
+            <h1>🔒 Mi Entrenamiento</h1>
+            <p id="lock-instruction">Cargando...</p>
+            <p id="lock-status" class="lock-status"></p>
+        </div>
+        <div class="pattern-container" id="pattern-container">
+            <svg class="pattern-svg" id="pattern-svg"><path class="pattern-line" id="pattern-line" d=""></path></svg>
+            <div class="pattern-grid" id="pattern-grid">
+                <div class="pattern-dot" data-index="0"></div>
+                <div class="pattern-dot" data-index="1"></div>
+                <div class="pattern-dot" data-index="2"></div>
+                <div class="pattern-dot" data-index="3"></div>
+                <div class="pattern-dot" data-index="4"></div>
+                <div class="pattern-dot" data-index="5"></div>
+                <div class="pattern-dot" data-index="6"></div>
+                <div class="pattern-dot" data-index="7"></div>
+                <div class="pattern-dot" data-index="8"></div>
+            </div>
+        </div>
+        <div class="lock-actions" id="lock-actions">
+            <button class="lock-btn secondary" onclick="LOCK.clearPattern()">Limpiar</button>
+            <button class="lock-btn primary" onclick="LOCK.confirmPattern()">Confirmar</button>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div class="container" id="main-app" style="display:none;">
+        <div class="header">
+            <h1>💪 Mi Entrenamiento</h1>
+            <p>Guardado en la nube ☁️</p>
+            <div id="sync-status" class="sync-status">🔄 Conectando...</div>
+        </div>
+        <div class="top-nav">
+            <button class="top-nav-btn active" onclick="APP.switchPage('entrenar')">🏋️ Entrenar</button>
+            <button class="top-nav-btn" onclick="APP.switchPage('historial')">📋 Historial</button>
+            <button class="top-nav-btn" onclick="APP.switchPage('estadisticas')">📊 Stats</button>
+        </div>
+        
+        <!-- ENTRENAR PAGE -->
+        <div id="page-entrenar" class="page active">
+            <div class="main-tabs">
+                <button class="main-tab active" data-section="pierna">🦵 Pierna</button>
+                <button class="main-tab" data-section="superior">💪 Superior</button>
+                <button class="main-tab" data-section="muaythai">🥊 Muay Thai</button>
+            </div>
+            <div class="content">
+                <div id="msg-success" class="message success">✅ Guardado</div>
+                <div id="msg-warning" class="message warning">⚠️ Ya guardaste hoy</div>
+                <div id="msg-info" class="message info">ℹ️ Actualizado</div>
+                <div id="APP_CONTAINER"></div>
+            </div>
+        </div>
+        
+        <!-- HISTORIAL PAGE -->
+        <div id="page-historial" class="page">
+            <div class="historial-page">
+                <div class="historial-header"><h2>📋 Mi Historial</h2></div>
+                <div id="historial-container"></div>
+            </div>
+        </div>
+        
+        <!-- ESTADISTICAS PAGE -->
+        <div id="page-estadisticas" class="page">
+            <div class="stats-page">
+                <!-- Body Map Section -->
+                <div class="stats-section">
+                    <h2>🧍 Mi Progreso Corporal</h2>
+                    <div class="body-legend">
+                        <div class="legend-item"><div class="legend-color green"></div> Mejorando</div>
+                        <div class="legend-item"><div class="legend-color orange"></div> Sin cambio</div>
+                        <div class="legend-item"><div class="legend-color red"></div> Retroceso</div>
+                        <div class="legend-item"><div class="legend-color gray"></div> Sin datos</div>
+                    </div>
+                    
+                    <div class="body-container">
+                        <!-- Vista Frontal -->
+                        <div class="body-view">
+                            <h4>Frontal</h4>
+                            <div class="human-body">
+                                <svg viewBox="0 0 100 230">
+                                    <!-- Silueta base del cuerpo - estilo 3D realista -->
+                                    <defs>
+                                        <linearGradient id="skinGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" style="stop-color:#e8d4c4"/>
+                                            <stop offset="50%" style="stop-color:#f5e6dc"/>
+                                            <stop offset="100%" style="stop-color:#e0c8b8"/>
+                                        </linearGradient>
+                                        <linearGradient id="shadowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" style="stop-color:#d4c4b4"/>
+                                            <stop offset="100%" style="stop-color:#c8b8a8"/>
+                                        </linearGradient>
+                                    </defs>
+                                    
+                                    <!-- Cabeza -->
+                                    <ellipse cx="50" cy="18" rx="14" ry="17" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                    
+                                    <!-- Cuello -->
+                                    <path d="M44,34 L44,42 C44,44 46,46 50,46 C54,46 56,44 56,42 L56,34" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                    
+                                    <!-- Hombros/Trapecios -->
+                                    <path class="body-part no-data" id="f-shoulders" d="M30,50 C35,46 44,44 50,44 C56,44 65,46 70,50 L72,56 L28,56 Z"/>
+                                    
+                                    <!-- Pectorales -->
+                                    <path class="body-part no-data" id="f-chest-l" d="M30,56 C28,62 30,75 35,80 C40,82 48,78 50,70 L50,56 C43,54 36,54 30,56 Z"/>
+                                    <path class="body-part no-data" id="f-chest-r" d="M70,56 C72,62 70,75 65,80 C60,82 52,78 50,70 L50,56 C57,54 64,54 70,56 Z"/>
+                                    
+                                    <!-- Deltoides -->
+                                    <path class="body-part no-data" id="f-delt-l" d="M28,56 C22,58 18,68 18,78 L24,82 L30,70 L30,56 Z"/>
+                                    <path class="body-part no-data" id="f-delt-r" d="M72,56 C78,58 82,68 82,78 L76,82 L70,70 L70,56 Z"/>
+                                    
+                                    <!-- Bíceps -->
+                                    <path class="body-part no-data" id="f-bicep-l" d="M18,78 C16,88 16,100 18,110 L26,112 C26,98 24,85 24,82 Z"/>
+                                    <path class="body-part no-data" id="f-bicep-r" d="M82,78 C84,88 84,100 82,110 L74,112 C74,98 76,85 76,82 Z"/>
+                                    
+                                    <!-- Antebrazos -->
+                                    <path class="body-part no-data" id="f-forearm-l" d="M18,110 L14,145 L12,155 L20,156 L26,145 L26,112 Z"/>
+                                    <path class="body-part no-data" id="f-forearm-r" d="M82,110 L86,145 L88,155 L80,156 L74,145 L74,112 Z"/>
+                                    
+                                    <!-- Abdominales -->
+                                    <path class="body-part no-data" id="f-abs" d="M42,78 L42,115 C44,118 48,120 50,120 C52,120 56,118 58,115 L58,78 C54,80 46,80 42,78 Z"/>
+                                    
+                                    <!-- Oblicuos -->
+                                    <path class="body-part no-data" id="f-oblique-l" d="M35,80 L38,115 L42,115 L42,78 C40,79 37,80 35,80 Z"/>
+                                    <path class="body-part no-data" id="f-oblique-r" d="M65,80 L62,115 L58,115 L58,78 C60,79 63,80 65,80 Z"/>
+                                    
+                                    <!-- Cadera -->
+                                    <path d="M35,115 L32,130 L40,135 L50,138 L60,135 L68,130 L65,115 Z" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                    
+                                    <!-- Cuádriceps -->
+                                    <path class="body-part no-data" id="f-quad-l" d="M32,130 L28,175 C30,185 35,190 40,192 L48,190 L50,138 L40,135 Z"/>
+                                    <path class="body-part no-data" id="f-quad-r" d="M68,130 L72,175 C70,185 65,190 60,192 L52,190 L50,138 L60,135 Z"/>
+                                    
+                                    <!-- Aductores -->
+                                    <path class="body-part no-data" id="f-adductor" d="M48,138 L45,180 L50,185 L55,180 L52,138 Z"/>
+                                    
+                                    <!-- Rodillas -->
+                                    <ellipse cx="38" cy="195" rx="8" ry="6" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                    <ellipse cx="62" cy="195" rx="8" ry="6" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                    
+                                    <!-- Pantorrillas -->
+                                    <path class="body-part no-data" id="f-calf-l" d="M32,200 L30,225 L45,225 L46,200 Z"/>
+                                    <path class="body-part no-data" id="f-calf-r" d="M68,200 L70,225 L55,225 L54,200 Z"/>
+                                    
+                                    <!-- Manos -->
+                                    <ellipse cx="14" cy="162" rx="5" ry="8" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                    <ellipse cx="86" cy="162" rx="5" ry="8" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <!-- Vista Posterior -->
+                        <div class="body-view">
+                            <h4>Posterior</h4>
+                            <div class="human-body">
+                                <svg viewBox="0 0 100 230">
+                                    <!-- Cabeza -->
+                                    <ellipse cx="50" cy="18" rx="14" ry="17" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                    
+                                    <!-- Cuello -->
+                                    <path d="M44,34 L44,42 C44,44 46,46 50,46 C54,46 56,44 56,42 L56,34" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                    
+                                    <!-- Trapecios -->
+                                    <path class="body-part no-data" id="b-traps" d="M35,44 C42,40 50,38 50,38 C50,38 58,40 65,44 L68,55 L50,52 L32,55 Z"/>
+                                    
+                                    <!-- Deltoides posterior -->
+                                    <path class="body-part no-data" id="b-delt-l" d="M32,55 C24,58 20,68 18,78 L24,82 L30,70 L30,55 Z"/>
+                                    <path class="body-part no-data" id="b-delt-r" d="M68,55 C76,58 80,68 82,78 L76,82 L70,70 L70,55 Z"/>
+                                    
+                                    <!-- Dorsales -->
+                                    <path class="body-part no-data" id="b-lat-l" d="M30,55 L30,70 L32,95 L38,100 L42,75 L42,55 Z"/>
+                                    <path class="body-part no-data" id="b-lat-r" d="M70,55 L70,70 L68,95 L62,100 L58,75 L58,55 Z"/>
+                                    
+                                    <!-- Espalda media -->
+                                    <path class="body-part no-data" id="b-mid-back" d="M42,55 L42,75 C46,72 50,70 50,70 C50,70 54,72 58,75 L58,55 Z"/>
+                                    
+                                    <!-- Tríceps -->
+                                    <path class="body-part no-data" id="b-tricep-l" d="M18,78 C16,90 16,102 18,112 L26,114 C25,100 24,86 24,82 Z"/>
+                                    <path class="body-part no-data" id="b-tricep-r" d="M82,78 C84,90 84,102 82,112 L74,114 C75,100 76,86 76,82 Z"/>
+                                    
+                                    <!-- Antebrazos -->
+                                    <path class="body-part no-data" id="b-forearm-l" d="M18,112 L14,145 L12,155 L20,156 L26,145 L26,114 Z"/>
+                                    <path class="body-part no-data" id="b-forearm-r" d="M82,112 L86,145 L88,155 L80,156 L74,145 L74,114 Z"/>
+                                    
+                                    <!-- Espalda baja -->
+                                    <path class="body-part no-data" id="b-lower-back" d="M38,100 L36,120 L50,125 L64,120 L62,100 C56,105 50,108 50,108 C50,108 44,105 38,100 Z"/>
+                                    
+                                    <!-- Glúteos -->
+                                    <path class="body-part no-data" id="b-glute-l" d="M36,120 L32,145 L45,150 L50,140 L50,125 Z"/>
+                                    <path class="body-part no-data" id="b-glute-r" d="M64,120 L68,145 L55,150 L50,140 L50,125 Z"/>
+                                    
+                                    <!-- Femorales -->
+                                    <path class="body-part no-data" id="b-ham-l" d="M32,145 L30,190 L45,195 L48,150 L45,150 Z"/>
+                                    <path class="body-part no-data" id="b-ham-r" d="M68,145 L70,190 L55,195 L52,150 L55,150 Z"/>
+                                    
+                                    <!-- Rodillas -->
+                                    <ellipse cx="38" cy="198" rx="7" ry="5" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                    <ellipse cx="62" cy="198" rx="7" ry="5" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                    
+                                    <!-- Gemelos -->
+                                    <path class="body-part no-data" id="b-calf-l" d="M32,202 C30,215 32,225 35,228 L42,228 C44,222 44,210 44,202 Z"/>
+                                    <path class="body-part no-data" id="b-calf-r" d="M68,202 C70,215 68,225 65,228 L58,228 C56,222 56,210 56,202 Z"/>
+                                    
+                                    <!-- Manos -->
+                                    <ellipse cx="14" cy="162" rx="5" ry="8" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                    <ellipse cx="86" cy="162" rx="5" ry="8" fill="url(#skinGrad)" stroke="#ccc" stroke-width="0.3"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Measurements Section -->
+                <div class="stats-section">
+                    <h2>📏 Mis Medidas</h2>
+                    <div class="measurements-grid">
+                        <div class="measurement-card">
+                            <label>Peso</label>
+                            <input type="number" step="0.1" id="measure-peso" placeholder="0.0">
+                            <div class="unit">kg</div>
+                            <div class="trend" id="trend-peso"></div>
+                        </div>
+                        <div class="measurement-card">
+                            <label>% Grasa</label>
+                            <input type="number" step="0.1" id="measure-grasa" placeholder="0.0">
+                            <div class="unit">%</div>
+                            <div class="trend" id="trend-grasa"></div>
+                        </div>
+                        <div class="measurement-card">
+                            <label>Cintura</label>
+                            <input type="number" step="0.5" id="measure-cintura" placeholder="0.0">
+                            <div class="unit">cm</div>
+                            <div class="trend" id="trend-cintura"></div>
+                        </div>
+                        <div class="measurement-card">
+                            <label>Cadera</label>
+                            <input type="number" step="0.5" id="measure-cadera" placeholder="0.0">
+                            <div class="unit">cm</div>
+                            <div class="trend" id="trend-cadera"></div>
+                        </div>
+                        <div class="measurement-card">
+                            <label>Pecho</label>
+                            <input type="number" step="0.5" id="measure-pecho" placeholder="0.0">
+                            <div class="unit">cm</div>
+                            <div class="trend" id="trend-pecho"></div>
+                        </div>
+                        <div class="measurement-card">
+                            <label>Brazos</label>
+                            <input type="number" step="0.5" id="measure-brazos" placeholder="0.0">
+                            <div class="unit">cm</div>
+                            <div class="trend" id="trend-brazos"></div>
+                        </div>
+                        <div class="measurement-card">
+                            <label>Piernas</label>
+                            <input type="number" step="0.5" id="measure-piernas" placeholder="0.0">
+                            <div class="unit">cm</div>
+                            <div class="trend" id="trend-piernas"></div>
+                        </div>
+                        <div class="measurement-card">
+                            <label>Pantorrillas</label>
+                            <input type="number" step="0.5" id="measure-pantorrillas" placeholder="0.0">
+                            <div class="unit">cm</div>
+                            <div class="trend" id="trend-pantorrillas"></div>
+                        </div>
+                    </div>
+                    <button class="save-measurements-btn" onclick="APP.saveMeasurements()">💾 Guardar Medidas</button>
+                </div>
+                
+                <!-- Calendar Section -->
+                <div class="stats-section">
+                    <h2>📅 Mi Constancia</h2>
+                    <div class="calendar-container">
+                        <div class="calendar-header">
+                            <button onclick="APP.prevMonth()">◀</button>
+                            <h3 id="calendar-month">Marzo 2026</h3>
+                            <button onclick="APP.nextMonth()">▶</button>
+                        </div>
+                        <div class="calendar-grid" id="calendar-grid"></div>
+                        <div class="calendar-legend">
+                            <div class="calendar-legend-item"><div class="calendar-legend-color" style="background:#28a745;"></div> Pierna</div>
+                            <div class="calendar-legend-item"><div class="calendar-legend-color" style="background:#007bff;"></div> Superior</div>
+                            <div class="calendar-legend-item"><div class="calendar-legend-color" style="background:#dc3545;"></div> Muay Thai</div>
+                            <div class="calendar-legend-item"><div class="calendar-legend-color" style="background:#e9ecef;"></div> Descanso</div>
+                        </div>
+                    </div>
+                    <div class="consistency-score">
+                        <h3>Constancia (último mes)</h3>
+                        <div class="score" id="consistency-score">--%</div>
+                        <div class="label" id="consistency-label">Pierna → Superior → Muay Thai → Descanso</div>
+                    </div>
+                </div>
+                
+                <button class="reset-pattern-btn" onclick="LOCK.resetPattern()">🔐 Cambiar Patrón</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <script>
+    // Firebase Config
+    firebase.initializeApp({
+        apiKey: "AIzaSyDe8vd3_FWWMhOgyL3qdukVXcJI_c6zTWM",
+        authDomain: "mi-entrenamiento-cc518.firebaseapp.com",
+        projectId: "mi-entrenamiento-cc518",
+        storageBucket: "mi-entrenamiento-cc518.firebasestorage.app",
+        messagingSenderId: "144797223454",
+        appId: "1:144797223454:web:f6e20a240d1279361ebc0f"
+    });
+    var db = firebase.firestore();
+    
+    // LOCK SCREEN
+    var LOCK = {
+        pattern: [], savedPattern: null, isDrawing: false, isSetupMode: false, setupStep: 0, tempPattern: null, dotPositions: [], isLoading: true,
+        
+        init: function() {
+            var self = this;
+            this.calculateDotPositions();
+            this.setupEvents();
+            document.getElementById('lock-instruction').textContent = 'Cargando...';
+            
+            db.collection('app-config').doc('lock-pattern').get()
+                .then(function(doc) {
+                    self.isLoading = false;
+                    if (doc.exists && doc.data().pattern) {
+                        self.savedPattern = doc.data().pattern;
+                        document.getElementById('lock-instruction').textContent = 'Dibuja tu patrón';
+                    } else {
+                        var local = localStorage.getItem('gym-app-pattern');
+                        if (local) { self.savedPattern = local; document.getElementById('lock-instruction').textContent = 'Dibuja tu patrón'; }
+                        else { self.startSetupMode(); }
+                    }
+                })
+                .catch(function() {
+                    self.isLoading = false;
+                    var local = localStorage.getItem('gym-app-pattern');
+                    if (local) { self.savedPattern = local; document.getElementById('lock-instruction').textContent = 'Dibuja tu patrón'; }
+                    else { self.startSetupMode(); }
+                });
+        },
+        
+        savePatternToFirebase: function(pattern, cb) {
+            db.collection('app-config').doc('lock-pattern').set({ pattern: pattern })
+                .then(function() { localStorage.setItem('gym-app-pattern', pattern); if(cb)cb(true); })
+                .catch(function() { localStorage.setItem('gym-app-pattern', pattern); if(cb)cb(false); });
+        },
+        
+        calculateDotPositions: function() {
+            var container = document.getElementById('pattern-container');
+            var dots = document.querySelectorAll('.pattern-dot');
+            var rect = container.getBoundingClientRect();
+            var self = this;
+            dots.forEach(function(dot, i) {
+                var r = dot.getBoundingClientRect();
+                self.dotPositions[i] = { x: r.left - rect.left + r.width/2, y: r.top - rect.top + r.height/2 };
+            });
+        },
+        
+        setupEvents: function() {
+            var c = document.getElementById('pattern-container'), self = this;
+            c.addEventListener('touchstart', function(e){self.startDrawing(e);}, {passive:false});
+            c.addEventListener('touchmove', function(e){self.draw(e);}, {passive:false});
+            c.addEventListener('touchend', function(){self.endDrawing();});
+            c.addEventListener('mousedown', function(e){self.startDrawing(e);});
+            c.addEventListener('mousemove', function(e){self.draw(e);});
+            c.addEventListener('mouseup', function(){self.endDrawing();});
+            c.addEventListener('mouseleave', function(){self.endDrawing();});
+            window.addEventListener('resize', function(){setTimeout(function(){self.calculateDotPositions();},100);});
+        },
+        
+        startSetupMode: function() {
+            this.isSetupMode = true; this.setupStep = 1;
+            document.getElementById('lock-instruction').textContent = '🆕 Crea tu patrón';
+            document.getElementById('lock-status').textContent = 'Conecta al menos 4 puntos';
+            document.getElementById('lock-actions').style.display = 'flex';
+        },
+        
+        startDrawing: function(e) { if(this.isLoading)return; e.preventDefault(); this.isDrawing=true; this.pattern=[]; this.clearVisual(); this.checkDot(e); },
+        draw: function(e) { if(!this.isDrawing)return; e.preventDefault(); this.checkDot(e); this.updateLine(e); },
+        
+        endDrawing: function() {
+            if(!this.isDrawing)return; this.isDrawing=false; this.updateLine(null,true);
+            if(this.pattern.length<4){this.showStatus('Mínimo 4 puntos','error');var s=this;setTimeout(function(){s.clearPattern();},800);return;}
+            if(this.isSetupMode){if(this.setupStep===1){this.tempPattern=this.pattern.join('-');this.setupStep=2;document.getElementById('lock-instruction').textContent='🔄 Confirma';document.getElementById('lock-status').textContent='';var s=this;setTimeout(function(){s.clearPattern();},400);}}
+            else{this.verifyPattern();}
+        },
+        
+        checkDot: function(e) {
+            var c=document.getElementById('pattern-container'),r=c.getBoundingClientRect();
+            var cx=e.touches?e.touches[0].clientX:e.clientX,cy=e.touches?e.touches[0].clientY:e.clientY;
+            var x=cx-r.left,y=cy-r.top,self=this;
+            this.dotPositions.forEach(function(p,i){var d=Math.sqrt(Math.pow(x-p.x,2)+Math.pow(y-p.y,2));if(d<35&&self.pattern.indexOf(i)===-1){self.pattern.push(i);document.querySelectorAll('.pattern-dot')[i].classList.add('active');}});
+        },
+        
+        updateLine: function(e,final) {
+            if(this.pattern.length===0)return;var d='',self=this;
+            this.pattern.forEach(function(i,idx){var p=self.dotPositions[i];d+=(idx===0?'M ':' L ')+p.x+' '+p.y;});
+            if(!final&&e&&this.pattern.length>0){var c=document.getElementById('pattern-container'),r=c.getBoundingClientRect();var cx=e.touches?e.touches[0].clientX:e.clientX,cy=e.touches?e.touches[0].clientY:e.clientY;d+=' L '+(cx-r.left)+' '+(cy-r.top);}
+            document.getElementById('pattern-line').setAttribute('d',d);
+        },
+        
+        verifyPattern: function() {
+            var cp=this.pattern.join('-'),self=this;
+            if(cp===this.savedPattern){this.showStatus('✅ Desbloqueado','success');document.querySelectorAll('.pattern-dot').forEach(function(d){d.classList.remove('active');d.classList.add('success');});setTimeout(function(){self.unlock();},400);}
+            else{this.showStatus('❌ Incorrecto','error');document.querySelectorAll('.pattern-dot').forEach(function(d){d.classList.remove('active');d.classList.add('error');});setTimeout(function(){self.clearPattern();},800);}
+        },
+        
+        confirmPattern: function() {
+            if(this.pattern.length<4){this.showStatus('Mínimo 4 puntos','error');return;}
+            var cp=this.pattern.join('-'),self=this;
+            if(this.setupStep===2){
+                if(cp===this.tempPattern){this.savedPattern=cp;this.showStatus('💾 Guardando...','');this.savePatternToFirebase(cp,function(){self.showStatus('✅ Guardado','success');document.querySelectorAll('.pattern-dot').forEach(function(d){d.classList.remove('active');d.classList.add('success');});setTimeout(function(){self.unlock();},400);});}
+                else{this.showStatus('❌ No coinciden','error');this.setupStep=1;document.getElementById('lock-instruction').textContent='🆕 Crea tu patrón';setTimeout(function(){self.clearPattern();},800);}
+            }else{this.tempPattern=cp;this.setupStep=2;document.getElementById('lock-instruction').textContent='🔄 Confirma';this.showStatus('','');setTimeout(function(){self.clearPattern();},400);}
+        },
+        
+        clearPattern: function() { this.pattern=[];document.querySelectorAll('.pattern-dot').forEach(function(d){d.classList.remove('active','error','success');});document.getElementById('pattern-line').setAttribute('d',''); },
+        clearVisual: function() { document.querySelectorAll('.pattern-dot').forEach(function(d){d.classList.remove('active','error','success');});document.getElementById('pattern-line').setAttribute('d',''); },
+        showStatus: function(t,c) { var s=document.getElementById('lock-status');s.textContent=t;s.className='lock-status '+c; },
+        unlock: function() { document.getElementById('lock-screen').classList.add('hidden');document.getElementById('main-app').style.display='block';this.isSetupMode=false;APP.init(); },
+        resetPattern: function() { if(confirm('¿Cambiar patrón?')){db.collection('app-config').doc('lock-pattern').delete().then(function(){localStorage.removeItem('gym-app-pattern');location.reload();}).catch(function(){localStorage.removeItem('gym-app-pattern');location.reload();});} }
+    };
+    
+    // ROUTINES
+    var ROUTINES = {
+        pierna: { name:"Pierna", days: {
+            dia1: { name:"Día 1", groups: {
+                "🍑 Glúteos": [{id:"p1-hip",name:"Hip Thrust",sets:"4×8-10"},{id:"p1-patada",name:"Patada glúteo",sets:"3×12-15"}],
+                "🦵 Cuádriceps": [{id:"p1-sent",name:"Sentadilla",sets:"4×8-10"},{id:"p1-ext",name:"Extensiones",sets:"3×12-15"}],
+                "🏋️ Femorales": [{id:"p1-rum",name:"Peso muerto rumano",sets:"4×8-10"},{id:"p1-curl",name:"Curl femoral",sets:"3×12"}],
+                "🔄 Aductores": [{id:"p1-aduc",name:"Aductores",sets:"3×15-20"},{id:"p1-abduc",name:"Abductores",sets:"3×15-20"}],
+                "🦶 Pantorrilla": [{id:"p1-pant",name:"Pantorrilla",sets:"4×15-20"}]
+            }},
+            dia2: { name:"Día 2", groups: {
+                "🍑 Glúteos": [{id:"p2-bulg",name:"Búlgara",sets:"3×10-12"},{id:"p2-hip",name:"Hip Thrust pausa",sets:"4×8-10"}],
+                "🦵 Cuádriceps": [{id:"p2-prensa",name:"Prensa",sets:"4×12"},{id:"p2-hack",name:"Hack squat",sets:"3×10-12"}],
+                "🏋️ Femorales": [{id:"p2-rig",name:"Peso muerto rígidas",sets:"3×10-12"},{id:"p2-curl",name:"Curl sentado",sets:"3×12-15"}],
+                "🔄 Aductores": [{id:"p2-abduc",name:"Abductores",sets:"4×15-20"},{id:"p2-aduc",name:"Aductores",sets:"3×15-20"}],
+                "🦶 Pantorrilla": [{id:"p2-gem",name:"Gemelo",sets:"4×20"}]
+            }}
+        }},
+        superior: { name:"Superior", days: {
+            dia1: { name:"Día 1", groups: {
+                "💪 Espalda": [{id:"s1-jal",name:"Jalón",sets:"4×8-12"},{id:"s1-remo",name:"Remo",sets:"3×10-12"}],
+                "🏋️ Pecho": [{id:"s1-press",name:"Press plano",sets:"4×8-10"},{id:"s1-incl",name:"Press inclinado",sets:"3×10-12"}],
+                "🔺 Hombro": [{id:"s1-mil",name:"Press militar",sets:"4×8-10"},{id:"s1-lat",name:"Elevaciones",sets:"4×12-15"}],
+                "💪 Tríceps": [{id:"s1-tri",name:"Extensión",sets:"3×12"}]
+            }},
+            dia2: { name:"Día 2", groups: {
+                "💪 Espalda": [{id:"s2-remo",name:"Remo barra",sets:"4×8-10"},{id:"s2-face",name:"Face pull",sets:"3×15"}],
+                "🏋️ Pecho": [{id:"s2-press",name:"Press inclinado",sets:"4×8-10"},{id:"s2-apert",name:"Aperturas",sets:"3×12-15"}],
+                "🔺 Hombro": [{id:"s2-arnold",name:"Press Arnold",sets:"3×10"},{id:"s2-paj",name:"Pájaros",sets:"4×12-15"}],
+                "💪 Bíceps": [{id:"s2-curl",name:"Curl barra",sets:"4×8-12"},{id:"s2-mart",name:"Curl martillo",sets:"3×12"}]
+            }}
+        }},
+        muaythai: { name:"Muay Thai", days: {
+            dia1: { name:"Día 1", rounds: [
+                {id:"mt1-1",name:"Calentamiento",timer:"6 min",exercises:["Cuerda","Shadow"]},
+                {id:"mt1-2",name:"Reflejos",timer:"30s×8",exercises:["Jabs","Cross"]},
+                {id:"mt1-3",name:"Potencia",timer:"40s×6",exercises:["Combos"]},
+                {id:"mt1-4",name:"Core",timer:"5 min",exercises:["Plancha"]}
+            ]},
+            dia2: { name:"Día 2", rounds: [
+                {id:"mt2-1",name:"Calentamiento",timer:"6 min",exercises:["Shadow","Patadas"]},
+                {id:"mt2-2",name:"Patadas",timer:"40s×6",exercises:["Low kick","Teep"]},
+                {id:"mt2-3",name:"Agilidad",timer:"30s×10",exercises:["Escalera"]},
+                {id:"mt2-4",name:"Flexibilidad",timer:"7 min",exercises:["Estiramientos"]}
+            ]}
+        }}
+    };
+    
+    // MAIN APP
+    var APP = {
+        isSaving:false, currentPage:'entrenar', currentMonth:new Date(), cache:{},
+        
+        init: function() { this.renderAll(); this.setupListeners(); this.loadAllRoutines(); this.updateSyncStatus('online'); },
+        updateSyncStatus: function(s) { var e=document.getElementById('sync-status');e.className='sync-status '+s;e.textContent=s==='online'?'☁️ Conectado':s==='offline'?'📴 Sin conexión':'🔄 Guardando...'; },
+        
+        save: function(k,v,cb) { this.cache[k]=v;db.collection('workout-data').doc(k).set({data:v}).then(function(){if(cb)cb(true);}).catch(function(){if(cb)cb(false);}); },
+        load: function(k,cb) { var self=this;if(this.cache[k]!==undefined){cb(this.cache[k]);return;}db.collection('workout-data').doc(k).get().then(function(d){if(d.exists){self.cache[k]=d.data().data;cb(d.data().data);}else{cb(null);}}).catch(function(){cb(null);}); },
+        
+        showMsg: function(t,txt) { var m=document.getElementById('msg-'+t);if(m){m.textContent=txt;m.classList.add('show');setTimeout(function(){m.classList.remove('show');},2500);} },
+        
+        switchPage: function(p) {
+            this.currentPage=p;
+            document.querySelectorAll('.top-nav-btn').forEach(function(b){b.classList.remove('active');});
+            document.querySelector('.top-nav-btn[onclick*="'+p+'"]').classList.add('active');
+            document.querySelectorAll('.page').forEach(function(pg){pg.classList.remove('active');});
+            document.getElementById('page-'+p).classList.add('active');
+            if(p==='estadisticas'){this.loadMeasurements();this.renderCalendar();this.updateBodyMap();this.calculateConsistency();}
+            if(p==='historial')this.renderHistorial();
+        },
+        
+        // MEASUREMENTS
+        saveMeasurements: function() {
+            var self=this,m={
+                peso:parseFloat(document.getElementById('measure-peso').value)||0,
+                grasa:parseFloat(document.getElementById('measure-grasa').value)||0,
+                cintura:parseFloat(document.getElementById('measure-cintura').value)||0,
+                cadera:parseFloat(document.getElementById('measure-cadera').value)||0,
+                pecho:parseFloat(document.getElementById('measure-pecho').value)||0,
+                brazos:parseFloat(document.getElementById('measure-brazos').value)||0,
+                piernas:parseFloat(document.getElementById('measure-piernas').value)||0,
+                pantorrillas:parseFloat(document.getElementById('measure-pantorrillas').value)||0,
+                date:new Date().toLocaleDateString('es-MX')
+            };
+            self.updateSyncStatus('syncing');
+            this.load('measurements-history',function(h){h=h||[];h.push(m);self.save('measurements-history',h,function(){self.updateSyncStatus('online');self.showMsg('success','✅ Medidas guardadas');self.updateBodyMap();self.loadMeasurements();});});
+        },
+        
+        loadMeasurements: function() {
+            var self=this;
+            this.load('measurements-history',function(h){
+                h=h||[];var l=h.length>0?h[h.length-1]:null,p=h.length>1?h[h.length-2]:null;
+                if(l){
+                    document.getElementById('measure-peso').value=l.peso||'';
+                    document.getElementById('measure-grasa').value=l.grasa||'';
+                    document.getElementById('measure-cintura').value=l.cintura||'';
+                    document.getElementById('measure-cadera').value=l.cadera||'';
+                    document.getElementById('measure-pecho').value=l.pecho||'';
+                    document.getElementById('measure-brazos').value=l.brazos||'';
+                    document.getElementById('measure-piernas').value=l.piernas||'';
+                    document.getElementById('measure-pantorrillas').value=l.pantorrillas||'';
+                }
+                if(l&&p){
+                    self.showTrend('peso',l.peso,p.peso,'down');
+                    self.showTrend('grasa',l.grasa,p.grasa,'down');
+                    self.showTrend('cintura',l.cintura,p.cintura,'down');
+                    self.showTrend('cadera',l.cadera,p.cadera,'up');
+                    self.showTrend('pecho',l.pecho,p.pecho,'up');
+                    self.showTrend('brazos',l.brazos,p.brazos,'up');
+                    self.showTrend('piernas',l.piernas,p.piernas,'up');
+                    self.showTrend('pantorrillas',l.pantorrillas,p.pantorrillas,'up');
+                }
+            });
+        },
+        
+        showTrend: function(f,c,p,gd) {
+            var e=document.getElementById('trend-'+f);if(!e||!c||!p)return;
+            var d=c-p;
+            if(d===0){e.textContent='= igual';e.className='trend same';}
+            else if(d>0){e.textContent='↑ +'+d.toFixed(1);e.className='trend '+(gd==='up'?'up':'down');}
+            else{e.textContent='↓ '+d.toFixed(1);e.className='trend '+(gd==='down'?'up':'down');}
+        },
+        
+        updateBodyMap: function() {
+            var self=this;
+            this.load('measurements-history',function(h){
+                if(!h||h.length<2)return;
+                var l=h[h.length-1],p=h[h.length-2];
+                var maps={
+                    'f-chest-l':{f:'pecho',g:'up'},'f-chest-r':{f:'pecho',g:'up'},
+                    'f-delt-l':{f:'brazos',g:'up'},'f-delt-r':{f:'brazos',g:'up'},
+                    'f-bicep-l':{f:'brazos',g:'up'},'f-bicep-r':{f:'brazos',g:'up'},
+                    'f-abs':{f:'cintura',g:'down'},'f-oblique-l':{f:'cintura',g:'down'},'f-oblique-r':{f:'cintura',g:'down'},
+                    'f-quad-l':{f:'piernas',g:'up'},'f-quad-r':{f:'piernas',g:'up'},
+                    'f-calf-l':{f:'pantorrillas',g:'up'},'f-calf-r':{f:'pantorrillas',g:'up'},
+                    'b-lat-l':{f:'pecho',g:'up'},'b-lat-r':{f:'pecho',g:'up'},
+                    'b-delt-l':{f:'brazos',g:'up'},'b-delt-r':{f:'brazos',g:'up'},
+                    'b-tricep-l':{f:'brazos',g:'up'},'b-tricep-r':{f:'brazos',g:'up'},
+                    'b-glute-l':{f:'cadera',g:'up'},'b-glute-r':{f:'cadera',g:'up'},
+                    'b-ham-l':{f:'piernas',g:'up'},'b-ham-r':{f:'piernas',g:'up'},
+                    'b-calf-l':{f:'pantorrillas',g:'up'},'b-calf-r':{f:'pantorrillas',g:'up'}
+                };
+                Object.keys(maps).forEach(function(id){
+                    var e=document.getElementById(id);if(!e)return;
+                    var m=maps[id],cv=parseFloat(l[m.f])||0,pv=parseFloat(p[m.f])||0;
+                    e.classList.remove('improved','maintained','declined','no-data');
+                    if(cv===0||pv===0){e.classList.add('no-data');}
+                    else{var d=cv-pv;if(d===0)e.classList.add('maintained');else if((d>0&&m.g==='up')||(d<0&&m.g==='down'))e.classList.add('improved');else e.classList.add('declined');}
+                });
+            });
+        },
+        
+        // CALENDAR
+        prevMonth: function() { this.currentMonth.setMonth(this.currentMonth.getMonth()-1);this.renderCalendar(); },
+        nextMonth: function() { this.currentMonth.setMonth(this.currentMonth.getMonth()+1);this.renderCalendar(); },
+        
+        renderCalendar: function() {
+            var self=this,ms=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+            document.getElementById('calendar-month').textContent=ms[this.currentMonth.getMonth()]+' '+this.currentMonth.getFullYear();
+            var y=this.currentMonth.getFullYear(),m=this.currentMonth.getMonth(),fd=new Date(y,m,1).getDay(),dm=new Date(y,m+1,0).getDate(),td=new Date();
+            fd=fd===0?6:fd-1;
+            var g=document.getElementById('calendar-grid');
+            g.innerHTML='<div class="calendar-day-header">L</div><div class="calendar-day-header">M</div><div class="calendar-day-header">X</div><div class="calendar-day-header">J</div><div class="calendar-day-header">V</div><div class="calendar-day-header">S</div><div class="calendar-day-header">D</div>';
+            var rts=['pierna-dia1','pierna-dia2','superior-dia1','superior-dia2','muaythai-dia1','muaythai-dia2'],sbd={},ld=0;
+            rts.forEach(function(r){self.load(r+'-sessions',function(ss){ss=ss||[];ss.forEach(function(dt){sbd[dt]=r.split('-')[0];});ld++;if(ld===rts.length)rd();});});
+            function rd(){for(var i=0;i<fd;i++)g.innerHTML+='<div class="calendar-day empty"></div>';for(var d=1;d<=dm;d++){var dt=new Date(y,m,d),ds=dt.toLocaleDateString('es-MX'),it=dt.toDateString()===td.toDateString(),cn='calendar-day'+(it?' today':'');cn+=sbd[ds]?' '+sbd[ds]:' rest';g.innerHTML+='<div class="'+cn+'">'+d+'</div>';}}
+        },
+        
+        calculateConsistency: function() {
+            var self=this,rts=['pierna-dia1','pierna-dia2','superior-dia1','superior-dia2','muaythai-dia1','muaythai-dia2'],ts=0,ld=0;
+            var ago=new Date();ago.setDate(ago.getDate()-30);
+            rts.forEach(function(r){self.load(r+'-sessions',function(ss){ss=ss||[];ss.forEach(function(ds){var pts=ds.split('/'),dt=new Date(pts[2],pts[1]-1,pts[0]);if(dt>=ago)ts++;});ld++;if(ld===rts.length){var exp=22,pct=Math.min(100,Math.round((ts/exp)*100));document.getElementById('consistency-score').textContent=pct+'%';var lbl=pct>=90?'¡Excelente! 🔥':pct>=70?'¡Muy bien! 💪':pct>=50?'Puedes mejorar 👍':'Más constancia 📈';document.getElementById('consistency-label').textContent=lbl;}});});
+        },
+        
+        // HISTORIAL
+        renderHistorial: function() {
+            var self=this,c=document.getElementById('historial-container');c.innerHTML='<p style="text-align:center;color:#6c757d;font-size:11px;">Cargando...</p>';
+            var rs=[{id:'pierna-dia1',n:'🦵 Pierna 1'},{id:'pierna-dia2',n:'🦵 Pierna 2'},{id:'superior-dia1',n:'💪 Superior 1'},{id:'superior-dia2',n:'💪 Superior 2'},{id:'muaythai-dia1',n:'🥊 Muay Thai 1'},{id:'muaythai-dia2',n:'🥊 Muay Thai 2'}];
+            var h='',ld=0;
+            rs.forEach(function(r){self.load(r.id+'-sessions',function(ss){ss=ss||[];ld++;h+='<div class="historial-routine" data-routine="'+r.id+'"><h3>'+r.n+' <span class="sessions-count">('+ss.length+')</span></h3>';if(ss.length===0){h+='<div class="no-sessions">Sin sesiones</div>';}else{h+='<div class="historial-sessions">';ss.slice().reverse().forEach(function(dt){h+='<div class="historial-session"><span class="historial-session-date">📅 '+dt+'</span><button class="historial-session-delete" onclick="APP.deleteSession(\''+r.id+'\',\''+dt+'\')">🗑️</button></div>';});h+='</div>';}h+='<button class="historial-clear-btn" onclick="APP.clearHistory(\''+r.id+'\')">🗑️ Borrar Todo</button></div>';if(ld===rs.length)c.innerHTML=h;});});
+        },
+        
+        deleteSession: function(rid,dtd) {
+            if(!confirm('¿Eliminar '+dtd+'?'))return;var self=this;self.updateSyncStatus('syncing');
+            var ct=document.getElementById(rid),exs=[];
+            if(ct){ct.querySelectorAll('.exercise[data-id]').forEach(function(e){exs.push(e.dataset.id);});ct.querySelectorAll('input[type="checkbox"][data-id]').forEach(function(c){exs.push(c.dataset.id);});}
+            this.load(rid+'-sessions',function(ss){ss=(ss||[]).filter(function(d){return d!==dtd;});self.save(rid+'-sessions',ss,function(){var pr=0;if(exs.length===0){fn();return;}exs.forEach(function(ex){self.load(ex,function(h){var f=(h||[]).filter(function(e){return e.date!==dtd;});self.cache[ex]=f;self.save(ex,f,function(){pr++;if(pr===exs.length)fn();});});});function fn(){self.updateSyncStatus('online');self.showMsg('info','🗑️ Eliminada');self.loadRoutine(rid);self.renderHistorial();}});});
+        },
+        
+        clearHistory: function(rid) {
+            if(!confirm('¿Borrar TODO?'))return;var self=this;self.updateSyncStatus('syncing');
+            var ct=document.getElementById(rid),exs=[];
+            if(ct){ct.querySelectorAll('.exercise[data-id]').forEach(function(e){exs.push(e.dataset.id);});ct.querySelectorAll('input[type="checkbox"][data-id]').forEach(function(c){exs.push(c.dataset.id);});}
+            this.save(rid+'-sessions',[],function(){var dl=0;if(exs.length===0){fn();return;}exs.forEach(function(ex){self.cache[ex]=[];db.collection('workout-data').doc(ex).delete().then(function(){dl++;if(dl===exs.length)fn();}).catch(function(){dl++;if(dl===exs.length)fn();});});function fn(){self.updateSyncStatus('online');self.showMsg('info','🗑️ Borrado');self.loadRoutine(rid);self.renderHistorial();}});
+        },
+        
+        // TRAINING
+        getSessions: function(rid,cb) { this.load(rid+'-sessions',function(s){cb(s||[]);}); },
+        canSaveToday: function(rid,cb) { var td=new Date().toLocaleDateString('es-MX');this.getSessions(rid,function(s){cb(s.indexOf(td)===-1);}); },
+        
+        editExerciseName: function(ex) { var n=document.querySelector('.exercise-name[data-exid="'+ex+'"]'),i=document.querySelector('.exercise-name-input[data-exid="'+ex+'"]');if(n&&i){n.style.display='none';i.style.display='block';i.value=n.textContent;i.focus();} },
+        saveEditedName: function(ex) { var self=this,n=document.querySelector('.exercise-name[data-exid="'+ex+'"]'),i=document.querySelector('.exercise-name-input[data-exid="'+ex+'"]');if(n&&i){var nw=i.value.trim();if(nw){n.textContent=nw;this.load('custom-names',function(ns){ns=ns||{};ns[ex]=nw;self.save('custom-names',ns);});this.showMsg('info','✏️ Guardado');}n.style.display='block';i.style.display='none';} },
+        
+        renderWeightRoutine: function(rid,r) {
+            var h='<div class="edit-hint">💡 Toca el nombre para editarlo</div>';
+            Object.keys(r.groups).forEach(function(gn){h+='<div class="muscle-group"><h3>'+gn+'</h3>';r.groups[gn].forEach(function(ex){var eid=rid+'-'+ex.id;h+='<div class="exercise" data-id="'+eid+'"><div class="exercise-header"><span class="exercise-name" data-exid="'+eid+'" onclick="APP.editExerciseName(\''+eid+'\')">'+ex.name+'</span><input type="text" class="exercise-name-input" data-exid="'+eid+'" onblur="APP.saveEditedName(\''+eid+'\')" onkeypress="if(event.key===\'Enter\')this.blur()"><span class="exercise-sets">'+ex.sets+'</span></div><div class="exercise-inputs"><div class="weight-input"><label>kg:</label><input type="number" step="2.5" min="0" class="weight-field"></div><div class="notes-input"><textarea class="notes-field" placeholder="Notas..."></textarea></div></div><div class="history"></div></div>';});h+='</div>';});
+            h+='<button class="save-btn" onclick="APP.saveWorkout(\''+rid+'\')">💾 Guardar</button>';
+            return h;
+        },
+        
+        renderMuayThaiRoutine: function(rid,r) {
+            var h='';
+            r.rounds.forEach(function(rd){
+                h+='<div class="round-section"><h3>🔥 '+rd.name+'</h3><span class="timer-info">⏱️ '+rd.timer+'</span>';
+                if(rd.exercises.length>0){h+='<ul class="exercise-list">';rd.exercises.forEach(function(e){h+='<li>'+e+'</li>';});h+='</ul>';}
+                h+='<div class="completion-checkbox"><input type="checkbox" id="'+rid+'-'+rd.id+'" data-id="'+rid+'-'+rd.id+'"><label for="'+rid+'-'+rd.id+'">✅ Completado</label></div></div>';
+            });
+            h+='<button class="save-btn" onclick="APP.saveWorkout(\''+rid+'\')">💾 Guardar Día</button>';
+            return h;
+        },
+        
+        renderAll: function() {
+            var h='',self=this,f=true;
+            Object.keys(ROUTINES).forEach(function(sk){var s=ROUTINES[sk];h+='<div id="'+sk+'-section" class="section '+(f?'active':'')+'"><div class="sub-tabs">';var fd=true;Object.keys(s.days).forEach(function(dk){h+='<button class="sub-tab '+(fd?'active':'')+'" data-section="'+sk+'" data-day="'+dk+'">'+s.days[dk].name+'</button>';fd=false;});h+='</div>';fd=true;Object.keys(s.days).forEach(function(dk){var d=s.days[dk],rid=sk+'-'+dk;h+='<div id="'+rid+'" class="routine '+(fd?'active':'')+'">';h+=sk==='muaythai'?self.renderMuayThaiRoutine(rid,d):self.renderWeightRoutine(rid,d);h+='</div>';fd=false;});h+='</div>';f=false;});
+            document.getElementById('APP_CONTAINER').innerHTML=h;
+        },
+        
+        loadAllRoutines: function() { var self=this;['pierna-dia1','pierna-dia2','superior-dia1','superior-dia2','muaythai-dia1','muaythai-dia2'].forEach(function(r){self.loadRoutine(r);}); },
+        
+        loadRoutine: function(rid) {
+            var ct=document.getElementById(rid);if(!ct)return;var self=this;
+            ct.querySelectorAll('.exercise[data-id]').forEach(function(ex){
+                var eid=ex.dataset.id,wi=ex.querySelector('.weight-field'),ni=ex.querySelector('.notes-field'),hi=ex.querySelector('.history'),ns=ex.querySelector('.exercise-name');
+                self.load('custom-names',function(n){n=n||{};if(n[eid])ns.textContent=n[eid];});
+                self.load(eid,function(h){h=h||[];if(h.length>0){var l=h[h.length-1];if(wi)wi.value=l.weight||'';if(ni)ni.value=l.notes||'';}if(hi){if(h.length===0){hi.innerHTML='<strong>📊 Historial:</strong><div class="no-history">Sin registros</div>';}else{var hh='<strong>📊 Historial:</strong>';h.slice(-4).reverse().forEach(function(e){hh+='<div class="history-item"><span class="history-weight">💪 '+e.weight+'kg</span>'+(e.notes?'<span class="history-notes">'+e.notes+'</span>':'')+'<span class="history-date">'+e.date+'</span></div>';});hi.innerHTML=hh;}}});
+            });
+        },
+        
+        saveWorkout: function(rid) {
+            if(this.isSaving)return;var self=this;
+            this.canSaveToday(rid,function(can){
+                if(!can){self.showMsg('warning','⚠️ Ya guardaste hoy');return;}
+                self.isSaving=true;self.updateSyncStatus('syncing');var ct=document.getElementById(rid),btn=ct.querySelector('.save-btn');if(btn){btn.disabled=true;btn.textContent='⏳...';}
+                var td=new Date().toLocaleDateString('es-MX'),ts=[];
+                ct.querySelectorAll('.exercise[data-id]').forEach(function(ex){var eid=ex.dataset.id,w=parseFloat(ex.querySelector('.weight-field').value),ne=ex.querySelector('.notes-field'),n=ne?ne.value.trim():'';if(!isNaN(w)&&w>0)ts.push({exId:eid,weight:w,notes:n,date:td,el:ex});});
+                ct.querySelectorAll('input[type="checkbox"][data-id]').forEach(function(cb){if(cb.checked)ts.push({checkId:cb.dataset.id,date:td});});
+                if(ts.length===0){alert('Ingresa al menos un dato');self.isSaving=false;self.updateSyncStatus('online');if(btn){btn.disabled=false;btn.textContent='💾 Guardar';}return;}
+                var cp=0;
+                ts.forEach(function(it){
+                    if(it.exId){self.load(it.exId,function(h){h=h||[];h.push({weight:it.weight,notes:it.notes,date:it.date});self.save(it.exId,h,function(){var hi=it.el.querySelector('.history');if(hi){var hh='<strong>📊 Historial:</strong>';h.slice(-4).reverse().forEach(function(e){hh+='<div class="history-item"><span class="history-weight">💪 '+e.weight+'kg</span>'+(e.notes?'<span class="history-notes">'+e.notes+'</span>':'')+'<span class="history-date">'+e.date+'</span></div>';});hi.innerHTML=hh;}cp++;cd();});});}
+                    else if(it.checkId){self.load(it.checkId,function(h){h=h||[];h.push({completed:true,date:it.date});self.save(it.checkId,h,function(){cp++;cd();});});}
+                });
+                function cd(){if(cp===ts.length){self.getSessions(rid,function(ss){if(ss.indexOf(td)===-1){ss.push(td);self.save(rid+'-sessions',ss,fn);}else{fn();}});}}
+                function fn(){self.showMsg('success','✅ Guardado');self.updateSyncStatus('online');setTimeout(function(){self.isSaving=false;if(btn){btn.disabled=false;btn.textContent='💾 Guardar';}},1500);}
+            });
+        },
+        
+        setupListeners: function() {
+            var self=this;
+            document.querySelectorAll('.main-tab').forEach(function(t){t.addEventListener('click',function(){var s=t.dataset.section;document.querySelectorAll('.main-tab').forEach(function(x){x.classList.remove('active');});t.classList.add('active');document.querySelectorAll('.section').forEach(function(x){x.classList.remove('active');});document.getElementById(s+'-section').classList.add('active');self.loadRoutine(s+'-'+Object.keys(ROUTINES[s].days)[0]);});});
+            document.addEventListener('click',function(e){if(e.target.classList.contains('sub-tab')){var s=e.target.dataset.section,d=e.target.dataset.day,rid=s+'-'+d,p=document.getElementById(s+'-section');p.querySelectorAll('.sub-tab').forEach(function(x){x.classList.remove('active');});e.target.classList.add('active');p.querySelectorAll('.routine').forEach(function(x){x.classList.remove('active');});document.getElementById(rid).classList.add('active');self.loadRoutine(rid);}});
+        }
+    };
+    
+    // START
+    document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){LOCK.init();},100);});
+    </script>
+</body>
+</html>
